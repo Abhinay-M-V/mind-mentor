@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Card } from "@/components/ui/card";
@@ -25,14 +25,8 @@ export default function PdfListPage() {
   const { toast } = useToast();
   const { status } = useSession();
 
-  // Load documents on mount and when auth status changes
-  useEffect(() => {
-    if (status === 'authenticated') {
-      fetchDocuments();
-    }
-  }, [status]);
-
-  const fetchDocuments = async () => {
+  // make fetchDocuments stable so useEffect dependency is satisfied
+  const fetchDocuments = useCallback(async () => {
     try {
       // Don't fetch if not authenticated
       if (status !== 'authenticated') {
@@ -52,7 +46,7 @@ export default function PdfListPage() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to fetch documents');
       }
       
@@ -70,7 +64,18 @@ export default function PdfListPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [status, toast]);
+
+  // Load documents on mount and when auth status changes
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchDocuments();
+    } else {
+      // ensure UI resets if unauthenticated
+      setDocuments([]);
+      setIsLoading(false);
+    }
+  }, [status, fetchDocuments]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -144,7 +149,7 @@ export default function PdfListPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to delete document');
       }
 
@@ -272,4 +277,4 @@ export default function PdfListPage() {
       </div>
     </div>
   );
-} 
+}
