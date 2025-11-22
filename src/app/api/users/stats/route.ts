@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from "next/server"; 
 import { connectMongoDB } from "@/lib/mongodb";
 import StudyStats from "@/models/studyStats";
 import { getServerSession } from "next-auth";
@@ -41,4 +43,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}
