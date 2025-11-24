@@ -1,19 +1,18 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { BookOpen, Brain, Clock } from 'lucide-react'
+
 import { HeroSection } from '@/components/sections/HeroSection'
 import { FeaturesGrid } from '@/components/sections/FeatureGrid'
-import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-import SocialWall from "@/components/SocialWall"
-import { Video } from "@/components/Video"
-import { FaqSection } from "@/components/sections/FaqSection"
 
 export default function Page() {
   const { data: session } = useSession()
   const router = useRouter()
 
+  // Redirect authenticated users to the dashboard
   useEffect(() => {
     if (session) {
       router.push('/home')
@@ -38,33 +37,20 @@ export default function Page() {
     }
   ]
 
+  // Prevent flash of content while redirecting
+  if (session) return null
+
   return (
     <div className="container mx-auto px-4 py-8 sm:py-16 bg-[#EFE9D5]">
       <HeroSection
         title="Welcome to"
         highlightedText="Mind Mentor"
         description="Your AI-powered study assistant for accelerated learning"
-        ctaText={session ? "Go to Dashboard" : "Get Started"}
-        ctaLink={session ? "/home" : "/register"}
+        ctaText="Get Started"
+        ctaLink="/register"
       />
       
       <FeaturesGrid features={features} />
-
-      <section className="py-12 sm:py-20">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
-          See Mind Mentor in Action
-        </h2>
-        <Video />
-      </section>
-
-      <section className="py-8 sm:py-20">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">
-          What Our Users Say
-        </h2>
-        <SocialWall />
-      </section>
-
-      <FaqSection />
     </div>
   )
 }
