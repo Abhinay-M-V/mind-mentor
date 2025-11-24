@@ -9,18 +9,9 @@ export function Footer() {
             © {new Date().getFullYear()} Mind Mentor. All rights reserved.
           </div>
 
-          <div className="flex items-center gap-4 md:absolute md:right-0">
+         
             <a
-              href="https://twitter.com/code_kartik"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-foreground hover:text-[#1DA1F2] transition-colors duration-200"
-              aria-label="Follow on Twitter"
-            >
-              <Twitter className="h-5 w-5" />
-            </a>
-            <a
-              href="https://www.linkedin.com/in/kartikcode"
+              href="https://www.linkedin.com/in/abhinay-m-v"
               target="_blank"
               rel="noopener noreferrer"
               className="text-foreground hover:text-[#0077B5] transition-colors duration-200"
