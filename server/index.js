@@ -15,7 +15,6 @@ import path from 'path';
 dotenv.config();
 
 // Ensure required directories exist
-// Note: Top-level await requires Node.js v14.8+ and "type": "module" in package.json
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!existsSync(uploadsDir)) {
   await mkdir(uploadsDir, { recursive: true });
@@ -25,7 +24,7 @@ if (!existsSync(uploadsDir)) {
 const app = express();
 const port = process.env.PORT || 8000;
 
-// Trust proxy - required for rate limiting behind reverse proxies (Render/Vercel/Heroku)
+// Trust proxy - required for rate limiting behind reverse proxies (Render)
 app.set('trust proxy', 1);
 app.use(express.json());
 
@@ -33,6 +32,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
+      "https://mind-mentor-67s2.onrender.com", // <-- ADDED YOUR RENDER URL
       "https://mind-mentor-pearl.vercel.app",
       "https://mind-mentor.kartiklabhshetwar.me",
       "http://localhost:3000",
@@ -48,28 +48,26 @@ app.use(
 // Global Rate limiting configuration
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes',
-  // Removed 'trustProxy: true' here because app.set('trust proxy', 1) handles it
 });
 
-// Apply global rate limiter to all routes
+// Apply global rate limiter
 app.use(limiter);
 
-// --- FIX: Apply AI Rate Limiter to the ACTUAL route paths ---
-// Use the same paths here as you do in the router mounting below
+// --- FIX: Apply AI Rate Limiter to the CORRECT paths ---
 app.use('/curate-resources', aiRateLimiter);
 app.use('/generate-plan', aiRateLimiter);
-app.use('/pdf', aiRateLimiter); // Added this if PDF chat also uses AI
+app.use('/pdf', aiRateLimiter);
 
 // Basic health check
 app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Mind Mentor API is running' });
 });
 
-// Lightweight health check for Docker
+// Lightweight health check
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
@@ -91,7 +89,6 @@ app.use('/pdf', pdfChatRouter);
 // --- FIX: Error handling middleware must have 4 arguments ---
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    // If headers are already sent, delegate to default Express error handler
     if (res.headersSent) {
         return next(err);
     }
