@@ -6,9 +6,6 @@ import { FeaturesGrid } from '@/components/sections/FeatureGrid'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import SocialWall from "@/components/SocialWall"
-import { Video } from "@/components/Video"
-import { FaqSection } from "@/components/sections/FaqSection"
 
 export default function Page() {
   const { data: session } = useSession()
@@ -49,22 +46,6 @@ export default function Page() {
       />
       
       <FeaturesGrid features={features} />
-
-      <section className="py-12 sm:py-20">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
-          See Mind Mentor in Action
-        </h2>
-        <Video />
-      </section>
-
-      <section className="py-8 sm:py-20">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">
-          What Our Users Say
-        </h2>
-        <SocialWall />
-      </section>
-
-      <FaqSection />
     </div>
   )
 }
