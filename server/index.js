@@ -10,10 +10,12 @@ import rateLimit from 'express-rate-limit';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+
 // Load environment variables
 dotenv.config();
 
 // Ensure required directories exist
+// Note: Top-level await requires Node.js v14.8+ and "type": "module" in package.json
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!existsSync(uploadsDir)) {
   await mkdir(uploadsDir, { recursive: true });
@@ -23,7 +25,7 @@ if (!existsSync(uploadsDir)) {
 const app = express();
 const port = process.env.PORT || 8000;
 
-// Trust proxy - required for rate limiting behind reverse proxies
+// Trust proxy - required for rate limiting behind reverse proxies (Render/Vercel/Heroku)
 app.set('trust proxy', 1);
 app.use(express.json());
 
@@ -43,31 +45,31 @@ app.use(
   })
 );
 
-
-// Rate limiting configuration
+// Global Rate limiting configuration
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes',
-  // Add trusted proxy configuration
-  trustProxy: true
+  // Removed 'trustProxy: true' here because app.set('trust proxy', 1) handles it
 });
 
-// Apply rate limiter to all routes
+// Apply global rate limiter to all routes
 app.use(limiter);
 
-// Apply rate limiter to AI-related routes
-app.use('/api/resources', aiRateLimiter);
-app.use('/api/study-plan', aiRateLimiter);
+// --- FIX: Apply AI Rate Limiter to the ACTUAL route paths ---
+// Use the same paths here as you do in the router mounting below
+app.use('/curate-resources', aiRateLimiter);
+app.use('/generate-plan', aiRateLimiter);
+app.use('/pdf', aiRateLimiter); // Added this if PDF chat also uses AI
 
 // Basic health check
 app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Mind Mentor API is running' });
 });
 
-// Lightweight health check for Docker (no embeddings)
+// Lightweight health check for Docker
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
@@ -81,15 +83,19 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err));
 
-// Apply routes directly without auth middleware
+// Apply routes
 app.use('/generate-plan', generatePlanRouter);
 app.use('/curate-resources', curateResourcesRouter);
 app.use('/pdf', pdfChatRouter);
 
-// Error handling middleware
-app.use((err, req, res) => {
+// --- FIX: Error handling middleware must have 4 arguments ---
+app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ error: 'Something went wrong!' });
+    // If headers are already sent, delegate to default Express error handler
+    if (res.headersSent) {
+        return next(err);
+    }
+    res.status(500).json({ error: 'Something went wrong!', details: err.message });
 });
 
 app.listen(port, '0.0.0.0', () => {
