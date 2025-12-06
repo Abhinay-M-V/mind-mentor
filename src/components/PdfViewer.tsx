@@ -153,6 +153,10 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
       if (!response.ok) throw new Error('Failed to fetch PDF');
       
       const data = await response.json();
+      // --- ADD THESE DEBUG LOGS ---
+      console.log("API Response:", data);
+      console.log("Extracted Text:", data.text);
+      // ---------------------------
       if (!data.data) throw new Error('No PDF data received from server');
       if (!data.data.startsWith('data:application/pdf;base64,')) {
         throw new Error('Invalid PDF data format');
