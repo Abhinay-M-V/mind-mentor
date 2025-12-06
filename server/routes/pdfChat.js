@@ -5,6 +5,7 @@ import { processPdf } from '../services/pdfService.js';
 import { chatWithPdf } from '../services/pdfService.js';
 import { bufferToBase64, base64ToBuffer } from '../services/storageService.js';
 import transformersEmbeddings from '../services/transformersEmbeddings.js';
+import pdfParse from 'pdf-parse'; // <--- CRITICAL IMPORT
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const upload = multer({
   }
 });
 
-// Health check endpoint for Transformers.js embeddings
+// Health check endpoint
 router.get('/health', async (req, res) => {
   try {
     const health = await transformersEmbeddings.healthCheck();
@@ -66,7 +67,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get a specific PDF
+// Get a specific PDF (UPDATED FOR AUDIO PLAYER)
 router.get('/:id', async (req, res) => {
   try {
     const userId = req.headers['x-user-id'];
@@ -92,11 +93,28 @@ router.get('/:id', async (req, res) => {
       return res.status(500).json({ error: 'Invalid PDF data format' });
     }
 
-    // Return the full PDF data
+    // --- EXTRACT TEXT FOR AUDIO PLAYER ---
+    let extractedText = "";
+    try {
+        // Remove the data URL prefix to get raw base64 string
+        const base64Data = pdf.pdfData.replace(/^data:application\/pdf;base64,/, "");
+        const dataBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Extract text
+        const data = await pdfParse(dataBuffer);
+        extractedText = data.text;
+    } catch (parseError) {
+        console.error("Failed to extract text for audio:", parseError);
+        extractedText = "Could not extract text from this document for reading.";
+    }
+    // -------------------------------------
+
+    // Return the full PDF data AND the text
     res.json({ 
       data: pdf.pdfData,
       title: pdf.title,
-      pageCount: pdf.pageCount
+      pageCount: pdf.pageCount,
+      text: extractedText // <--- Send text to frontend
     });
   } catch (error) {
     console.error('Error fetching PDF:', error);
@@ -116,18 +134,13 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
 
     const userId = req.headers['x-user-id'];
     if (!userId) {
-      console.error('No user ID in request');
       return res.status(401).json({ error: 'User ID is required' });
     }
 
     try {
-      // Convert buffer to Base64
       const pdfData = bufferToBase64(req.file.buffer);
-
-      // Process PDF using the service
       const { documentChunks, pageCount } = await processPdf(req.file.buffer);
 
-      // Create new PDF document in database
       const pdfDoc = new PdfDocument({
         userId,
         title: req.file.originalname,
@@ -202,7 +215,6 @@ router.post('/:id/chat', async (req, res) => {
       return res.status(404).json({ error: 'PDF not found' });
     }
 
-    // Process the chat message using the PDF content
     const pdfBuffer = base64ToBuffer(pdf.pdfData);
     const { answer, sourcePages, sources } = await chatWithPdf(
       pdfBuffer,
@@ -210,7 +222,6 @@ router.post('/:id/chat', async (req, res) => {
       pdf.chatHistory
     );
 
-    // Add messages to chat history
     pdf.chatHistory.push({
       role: 'user',
       content: req.body.content,
@@ -263,4 +274,4 @@ router.get('/:documentId/history', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;
