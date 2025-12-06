@@ -39,8 +39,7 @@ function base64ToBuffer(base64String: string): Uint8Array {
 // Define specific types for PDF objects to fix "Unexpected any" errors
 interface PdfPage {
   getTextContent: () => Promise<{ items: { str: string }[] }>;
-  getViewport: (options: { scale: number, rotation: number }) => { width: number, height: number };
-  get: (key: string, defaultValue: any) => any;
+  // FIX: Removed getViewport and get to resolve TypeScript errors (they are not used for text extraction)
 }
 interface PdfDocumentProxy {
   numPages: number;
