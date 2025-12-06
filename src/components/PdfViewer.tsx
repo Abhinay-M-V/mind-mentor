@@ -36,6 +36,16 @@ function base64ToBuffer(base64String: string): Uint8Array {
   return buffer;
 }
 
+// Define specific types for PDF objects to fix "Unexpected any" errors
+interface PdfPage {
+  getTextContent: () => Promise<{ items: { str: string }[] }>;
+  getViewport: (options: { scale: number, rotation: number }) => { width: number, height: number };
+  get: (key: string, defaultValue: any) => any;
+}
+interface PdfDocumentProxy {
+  numPages: number;
+  getPage: (pageIndex: number) => Promise<PdfPage>;
+}
 interface PdfViewerProps {
   documentId: string;
   currentPage: number;
@@ -83,7 +93,7 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
   const pdfDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   // --- CRITICAL FIX: Extract Text in Browser ---
-  const onDocumentLoadSuccess = useCallback(async (pdf: any) => {
+  const onDocumentLoadSuccess = useCallback(async (pdf: PdfDocumentProxy) => {
     setViewState(prev => ({ ...prev, numPages: pdf.numPages }));
     setUiState(prev => ({ ...prev, error: null }));
 
@@ -100,7 +110,8 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
         try {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
-          const pageText = textContent.items.map((item: any) => item.str).join(' ');
+          // Fix TypeScript error by checking the type definition above
+          const pageText = textContent.items.map((item: { str: string }) => item.str).join(' '); 
           fullText += pageText + "\n\n";
         } catch (err) {
           console.warn(`Could not read page ${i}`, err);
