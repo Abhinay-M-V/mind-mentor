@@ -36,8 +36,54 @@ function base64ToBuffer(base64String: string): Uint8Array {
   return buffer;
 }
 
-// FIX: Removed all custom type definitions (TextItem, PdfPage, PdfDocumentProxy, PossibleTextItem)
-// We use 'any' for the PDF document proxy and rely on runtime type checking inside the function.
+// =========================================================================
+// --- UTILITY FUNCTION FOR TEXT EXTRACTION (TypeScript Safe Wrapper) ---
+// This isolates the logic that requires casting external library types ('any').
+// =========================================================================
+
+// Define the structure of the TextContent object received from pdf.js
+interface TextContent {
+  items: Array<{ str: string } | any>;
+}
+
+// Define the minimal required structure for the PDF object received from react-pdf
+interface PdfDocumentProxy {
+  numPages: number;
+  getPage: (pageIndex: number) => Promise<{ getTextContent: () => Promise<TextContent> }>;
+}
+
+async function extractTextFromPdf(pdf: PdfDocumentProxy): Promise<string> {
+  let fullText = "";
+  const numPages = pdf.numPages;
+
+  for (let i = 1; i <= numPages; i++) {
+    try {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+
+      // Filter and map items based on runtime properties (str)
+      // This is the safest way to handle inconsistent types from the external library
+      const pageText = textContent.items
+        .filter((item: any) => item && typeof item === 'object' && typeof item.str === 'string')
+        .map((item: any) => item.str)
+        .join(' ');
+        
+      fullText += pageText + "\n\n";
+    } catch (err) {
+      console.warn(`Could not read page ${i}`, err);
+    }
+  }
+
+  fullText = fullText.trim();
+  
+  if (!fullText) {
+    return "I couldn't find any readable text. This might be a scanned image.";
+  }
+  return fullText;
+}
+
+// =========================================================================
+
 
 interface PdfViewerProps {
   documentId: string;
@@ -86,7 +132,7 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
   const pdfDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   // --- CRITICAL FIX: Extract Text in Browser ---
-  // Using 'any' for the document proxy is the only reliable way to bypass strict type checking here.
+  // We now call the isolated utility function 'extractTextFromPdf'
   const onDocumentLoadSuccess = useCallback(async (pdf: any) => {
     setViewState(prev => ({ ...prev, numPages: pdf.numPages }));
     setUiState(prev => ({ ...prev, error: null }));
@@ -96,33 +142,9 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
     setStatusMessage("Reading document...");
     
     try {
-      let fullText = "";
-      const numPages = pdf.numPages;
-      
-      // Loop through all pages
-      for (let i = 1; i <= numPages; i++) {
-        try {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          
-          // FIX: Filter items based on runtime properties (str) instead of complex types
-          const pageText = textContent.items
-            .filter((item: any) => item && typeof item === 'object' && typeof item.str === 'string')
-            .map((item: any) => item.str)
-            .join(' ');
-            
-          fullText += pageText + "\n\n";
-        } catch (err) {
-          console.warn(`Could not read page ${i}`, err);
-        }
-      }
-
-      if (!fullText.trim()) {
-        fullText = "I couldn't find any readable text. This might be a scanned image.";
-      }
-
-      setPdfText(fullText);
-      console.log("PDF Text Extracted on Frontend:", fullText.substring(0, 100) + "...");
+      const extractedText = await extractTextFromPdf(pdf as PdfDocumentProxy);
+      setPdfText(extractedText);
+      console.log("PDF Text Extracted on Frontend:", extractedText.substring(0, 100) + "...");
     } catch (e) {
       console.error("Text extraction failed:", e);
       setPdfText("Error reading document.");
