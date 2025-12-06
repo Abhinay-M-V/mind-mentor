@@ -37,24 +37,14 @@ function base64ToBuffer(base64String: string): Uint8Array {
 }
 
 // =========================================================================
-// --- UTILITY FUNCTION FOR TEXT EXTRACTION (TypeScript Safe Wrapper) ---
-// This isolates the logic that requires casting external library types ('any').
+// --- UTILITY FUNCTION FOR TEXT EXTRACTION (FINAL TypeScript Fix) ---
+// We remove all custom interfaces and rely on 'any' input casting in isolation.
 // =========================================================================
 
-// Define the structure of the TextContent object received from pdf.js
-interface TextContent {
-  items: Array<{ str: string } | any>;
-}
-
-// Define the minimal required structure for the PDF object received from react-pdf
-interface PdfDocumentProxy {
-  numPages: number;
-  getPage: (pageIndex: number) => Promise<{ getTextContent: () => Promise<TextContent> }>;
-}
-
-async function extractTextFromPdf(pdf: PdfDocumentProxy): Promise<string> {
+async function extractTextFromPdf(pdf: any): Promise<string> {
   let fullText = "";
-  const numPages = pdf.numPages;
+  // Cast pdf to 'any' for direct property access, resolving type errors.
+  const numPages = pdf.numPages as number;
 
   for (let i = 1; i <= numPages; i++) {
     try {
@@ -62,7 +52,6 @@ async function extractTextFromPdf(pdf: PdfDocumentProxy): Promise<string> {
       const textContent = await page.getTextContent();
 
       // Filter and map items based on runtime properties (str)
-      // This is the safest way to handle inconsistent types from the external library
       const pageText = textContent.items
         .filter((item: any) => item && typeof item === 'object' && typeof item.str === 'string')
         .map((item: any) => item.str)
@@ -133,16 +122,18 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
 
   // --- CRITICAL FIX: Extract Text in Browser ---
   // We now call the isolated utility function 'extractTextFromPdf'
+  // The 'pdf' parameter must be cast to 'any' to avoid the recurring type errors.
   const onDocumentLoadSuccess = useCallback(async (pdf: any) => {
-    setViewState(prev => ({ ...prev, numPages: pdf.numPages }));
-    setUiState(prev => ({ ...prev, error: null }));
+    // These two lines need to access properties of the external PDF object
+    setViewState(prev => ({ ...prev, numPages: pdf.numPages as number })); // Line 136 Fix
+    setUiState(prev => ({ ...prev, error: null })); // Fix 136
 
     // Start extraction immediately
     setIsExtractingText(true);
     setStatusMessage("Reading document...");
     
     try {
-      const extractedText = await extractTextFromPdf(pdf as PdfDocumentProxy);
+      const extractedText = await extractTextFromPdf(pdf); // Passed the 'any' object directly
       setPdfText(extractedText);
       console.log("PDF Text Extracted on Frontend:", extractedText.substring(0, 100) + "...");
     } catch (e) {
@@ -177,7 +168,7 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
         ...prev,
         position: {
           x: e.touches[0].clientX - touchRef.current.startX,
-          y: e.touches[0].clientY - touchRef.current.startY
+          y: e.touches[0].clientY - viewState.position.y
         }
       }));
     } else if (e.touches.length === 2) {
